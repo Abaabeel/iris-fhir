@@ -12,6 +12,10 @@ real browser walk through: coverage card → real OIDC login → payer
 questionnaire → a `Claim` that a SMART app builds for itself → a prior-auth
 decision.
 
+**Powered by [InterSystems IRIS for Health](https://www.intersystems.com/products/intersystems-iris-for-health/)
+Community Edition.** We don't hand-roll a FHIR engine — we run the real
+product and prove it end to end. See [The InterSystems angle](#the-intersystems-angle).
+
 ![the CRD coverage card](docs/screenshots/01-crd-card.png)
 
 > **All patient data is synthetic** — upstream's own test fixtures (`Tables,
@@ -25,6 +29,7 @@ decision.
 - [Why this exists](#why-this-exists) — the problem we are trying to solve
 - [What we are trying to achieve](#what-we-are-trying-to-achieve) — the design
 - [What is in it for you](#what-is-in-it-for-you) — digital-health/HIS perspective, and the AI canvas
+- [The InterSystems angle](#the-intersystems-angle) — a working, shareable proof of IRIS for Health
 - [How it works](#how-it-works) — architecture and the end-to-end flow
 - [Install — Path A: the drop-in image](#install--path-a-the-drop-in-image-recommended) (recommended)
 - [Install — Path B: provision from source](#install--path-b-provision-from-source)
@@ -239,6 +244,68 @@ Bottom line for you: **this is the smallest machine that contains the whole
 future-proofed loop — payer rules, SMART workflow, structured data on a real
 clinical platform, and a decision at the end.** Run it once and you will
 never again have to imagine what FHIR-based prior auth is.
+
+---
+
+## The InterSystems angle — a working, shareable proof of IRIS for Health
+
+InterSystems builds IRIS for Health and says it is a FHIR engine. We did not
+take that on faith: this project is an **independent, reproducible, public
+demonstration** of the product doing exactly that — as the live data spine of
+a complete DaVinci prior-authorization loop, driven through a real browser to
+a real `Pending → Granted` decision. That is the difference between a brochure
+and a proof, and it is why this repository is the kind of thing InterSystems'
+developer-relations team tends to enjoy.
+
+### What the project proves about IRIS for Health
+
+| Receipt | Where the evidence lives |
+|---|---|
+| **Serves FHIR R4 over TLS** | on the imported image, `curl -sk https://10.0.3.108:52774/fhir/r4/metadata` returns the IRIS CapabilityStatement (`http_code` 200) |
+| **OAuth-secured, production-shaped** | an OAuth confidential client is provisioned inside the image; the shim mints a `client_credentials` bearer token (`aud` = the FHIR base URL) for every upstream call — the browser never holds an IRIS token |
+| **Real clinical data layer** | the DaVinci demo patients (`pat013` — Vlad Quinton and friends) are seeded into IRIS and served to the SMART questionnaire flow |
+| **Reliable enough to ship** | the whole IRIS instance ships as a checksum-verified drop-in image: cold boot to TLS 200 in seconds, auto-start via systemd unit, clean shutdowns |
+| **Proven end-to-end, twice** | 12/12 API assertions *and* 14/14 browser assertions drive claims to `GRANTED` against IRIS-backed data — two independent drivers, both green on the release |
+
+Nothing in that table is InterSystems marketing. The repo is public, the image
+is downloadable, the verification commands are in this README — anyone,
+including InterSystems, can run it and get the same answer.
+
+### Why this should interest InterSystems specifically
+
+- **A zero-friction way for people to try your product.** No account, no
+  license request, no install wizard, no cloud signup: one command imports a
+  fully provisioned IRIS for Health Community instance, and inside half an
+  hour a first-time user watches a prior-auth claim get granted against it.
+  For a product with a normally heavier on-ramp, that is developer-relations
+  gold.
+- **A third-party proof in the exact shape of a case study.** At lab scale it
+  demonstrates the story InterSystems tells at enterprise scale (the Stanford
+  Health Care FHIR + AI success story is the same narrative, bigger): real
+  FHIR R4, real OAuth, real clinical data — under an AI-ready platform
+  (multi-model storage, SQL on FHIR, native vector search for RAG/GenAI on
+  the same engine).
+- **The same regulation, both sides of the table.** InterSystems markets
+  Payer Services against CMS-0057/CMS-9115; this repo proves the
+  provider-side of the same regulation talking to an IRIS FHIR server. Put
+  the two together and you have the complete story.
+- **Community-shaped.** MIT-licensed, reproducible (`versions.lock`,
+  checksum-verified), documented for humans *and* AI agents (`AGENTS.md`),
+  with a draft blog matching this README (`blog/`). It is exactly the working,
+  shareable, verifiable FHIR build the [InterSystems Developer
+  Community](https://community.intersystems.com/) likes to feature.
+
+### Engagement, honestly framed
+
+We built this to teach and to demonstrate, not to join a vendor program — but
+we welcome InterSystems' eyes on it: run it, break it, re-verify it, and if
+it earns a Community article or a case-study mention, that is theirs to
+write. One boundary: the IRIS instance is the product verbatim — Community
+Edition, free for evaluation and development, governed by InterSystems'
+licence; no InterSystems code or assets are redistributed, the image is a
+provisioned instance, not a fork. "IRIS for Health" is InterSystems' product
+and the reason this project works as well as it does — no trademark claim is
+made or implied.
 
 ---
 
@@ -754,6 +821,8 @@ assets on GitHub.
 
 - [InterSystems IRIS for Health](https://www.intersystems.com/products/intersystems-iris-for-health/)
   — the platform; FHIR Services; Health Connect; OMOP.
+- [InterSystems Developer Community](https://community.intersystems.com/) —
+  where working IRIS builds (like this one) get shared.
 - InterSystems Payer Services — marketed for CMS-0057/CMS-9115 compliance
   (the payer side of the same regulation).
 - InterSystems success story: [Stanford Health Care — meeting healthcare AI
