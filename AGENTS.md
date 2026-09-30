@@ -40,7 +40,7 @@ Everything the stack authenticates against, in full. There is nothing else.
 | Keycloak demo user | `dtr` / `dtr-demo` | `fixtures/keycloak/BurdenReduction-realm.json` | none — `e2e-browser.py` types it |
 | Keycloak client secret | `#replaceMe#` | same fixture; a literal upstream placeholder | none |
 | PAS FHIR client | none | PAS runs `BYPASS_AUTH=true`, issues its own token from H2 | none |
-| GitHub | none | the repository is public; anonymous clone works | none |
+| GitHub | none | origin = `Abaabeel/davinci-mock` (unchanged, unpushed). Active repo: **`Abaabeel/iris-fhir`** (private) — remote `iris-fhir`, created + pushed 2026-09-30 as the project's home under the LXC machine's name | none |
 | `VSAC_API_KEY` | absent | optional; without it 67 value sets do not resolve | none — omit it |
 | IRIS FHIR OAuth confidential client | auto-generated id/secret in `bin/env.sh` (`IRIS_OAUTH_CLIENT_ID`/`_SECRET`) | created by `ConfigureInternalOAuthClients()` when the `iris-fhir` container was provisioned; local mock fixture, same standing as Keycloak's `admin/admin` — it only authorizes against the container's internal OAuth server | none — needed by `bin/ehr-shim` and `bin/seed-iris.sh` |
 
