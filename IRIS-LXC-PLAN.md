@@ -333,3 +333,53 @@ better here.
 
 ## Out of scope
 Docker-in-LXC, old sandbox recreation, touching the six-service stack until Phase 6.
+
+## Phase 7 — distributable LXC image (DONE 2026-09-30, later)
+
+The LXC machine is now a drop-in artifact: `bin/lxc-image-build.sh` (build,
+maintainer-side) and `bin/lxc-import.sh github` (one-command end-user import
+from the GitHub release) + `LXC-DROPIN.md` (fresh-Ubuntu runbook).
+
+- **Determinism fix:** the container's 10.0.3.108 was a **DHCP lease**, which a
+  fresh host would not reproduce. Pinned it statically: netplan
+  `10-lxc.yaml` → `10.0.3.108/24` via `10.0.3.1`, resolv.conf → `10.0.3.1`
+  (was a WSL-ism `10.255.255.254`). env.sh/ehr-shim/seed-iris defaults
+  (`https://10.0.3.108:52774`) now hold on any default-lxcbr0 host.
+- **Trims before packaging (while stopped):** `/opt/iris-kit` (1.1 G), apt
+  caches/lists (473 M), logs, `/tmp` — **but NOT the WIJ, journals or ssh host
+  keys**: deleting the WIJ makes IRIS think the last shutdown was abnormal and
+  dumps the box into single-user journal recovery on next boot (hit on
+  2026-09-30, recovered via STURECOV, then excluded from the recipe).
+  Raw 8.6 G → **~7 G** → **~2.8 G** pigz-9 (2 × 1800 M parts + sha256sets).
+- **Distribution:** release assets on `Abaabeel/iris-fhir` (repo flipped public
+  so anonymous end users can pull); `lxc-import.sh github` fetches, verifies
+  `parts.sha256`, extracts to `/var/lib/lxc`, starts, and waits for a 200 on
+  `https://10.0.3.108:52774/fhir/r4/metadata`.
+- **Autostart baked in:** IRIS had no start-at-boot mechanism (no unit, no
+  rc.local — the original box was hand-started). Image ships
+  `/etc/systemd/system/iris.service` (oneshot, RemainAfterExit, KillMode=process
+  so systemd can never cgroup-kill the irisdb daemons at stop timeout). The
+  ExecStop runs `iris stop FHIR` inside a pty (`script`) feeding `N`, `Y`, and a
+  delayed `h` (halt) — `iris stop`'s confirm prompts read `/dev/tty`, so a plain
+  ExecStop EOF-fails under systemd; and the console session lingers at its
+  prompt after shutdown, so it needs the `h` to exit. End users just
+  `lxc-start` the container; IRIS comes up on its own.
+- **Recovery episode (the mistake this recipe encodes):** deleting `IRIS.WIJ`
+  after a clean stop makes IRIS believe the last shutdown was abnormal; the
+  next start aborts journal restore with a stale-WIJ error and drops to
+  single-user mode ("Startup aborted, entering single user mode"). Fixed with
+  `iris session FHIR -B` → `Do ^STURECOV` → option **8** (reset system so
+  journal is not restored at startup; pipes that WIJ-erase state), then a
+  shutdown — `iris stop`/STURECOV option 3 refuse non-TTY prompts, so
+  `iris force FHIR` was used to cycle it, and the reset made the next start
+  boot straight to multi-user (abnormal-shutdown noted as a harmless alert).
+  The wipe happened during packaging trims; the build script now hard-excludes
+  WIJ/journals/ssh keys/`/var/log` dirs from trimming.
+- **Re-verified after repack:** container restarted, direct TLS 200, ehr-shim
+  8080 200, patient read through shim returns seed data, CRD doc-needed flag
+  true (top-level `systemActions` non-empty on the warmup fixture),
+  `state: warn` in `iris list` = benign HealthShare no-partner notice.
+- **Open notes:** IRIS Health Community redistribution terms flagged in
+  `LXC-DROPIN.md`; IRIS `_SYSTEM` password and the mock TLS key travel in the
+  image (mock credentials by design); `machine-id` is duplicated per copy —
+  acceptable for a demo image.

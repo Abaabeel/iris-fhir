@@ -40,7 +40,7 @@ Everything the stack authenticates against, in full. There is nothing else.
 | Keycloak demo user | `dtr` / `dtr-demo` | `fixtures/keycloak/BurdenReduction-realm.json` | none — `e2e-browser.py` types it |
 | Keycloak client secret | `#replaceMe#` | same fixture; a literal upstream placeholder | none |
 | PAS FHIR client | none | PAS runs `BYPASS_AUTH=true`, issues its own token from H2 | none |
-| GitHub | none | origin = `Abaabeel/davinci-mock` (unchanged, unpushed). Active repo: **`Abaabeel/iris-fhir`** (private) — remote `iris-fhir`, created + pushed 2026-09-30 as the project's home under the LXC machine's name | none |
+| GitHub | none | origin = `Abaabeel/davinci-mock` (unchanged, unpushed). Active repo: **`Abaabeel/iris-fhir`** (public) — remote `iris-fhir`, created + pushed 2026-09-30 as the project's home under the LXC machine's name; flipped public 2026-09-30 (later) to serve the distributable LXC image release to end users (`bin/lxc-import.sh github`). Image parts live as release assets on this repo | none |
 | `VSAC_API_KEY` | absent | optional; without it 67 value sets do not resolve | none — omit it |
 | IRIS FHIR OAuth confidential client | auto-generated id/secret in `bin/env.sh` (`IRIS_OAUTH_CLIENT_ID`/`_SECRET`) | created by `ConfigureInternalOAuthClients()` when the `iris-fhir` container was provisioned; local mock fixture, same standing as Keycloak's `admin/admin` — it only authorizes against the container's internal OAuth server | none — needed by `bin/ehr-shim` and `bin/seed-iris.sh` |
 
@@ -265,6 +265,28 @@ State these if asked; do not try to fix them.
   fire.
 - The full prior-auth decision takes about 15 seconds (`DELAY=15000` in `env.sh`).
 - Linux only. Windows and macOS are not supported.
+
+## LXC drop-in image (maintenance notes)
+
+The `iris-fhir` LXC container ships as a distributable image (release assets on
+`Abaabeel/iris-fhir`; `bin/lxc-import.sh github` on the end-user host). If you
+repackage it:
+
+- `bin/lxc-image-build.sh` trims cruft but the trim must **never** delete
+  `IRIS.WIJ`, the journal files, or `journal.log` (IRIS's journal-HISTORY log).
+  Deleting the WIJ or journal.log makes the next boot abort into single-user
+  journal-recovery mode ("Startup aborted, entering single user mode") — both
+  were hit on 2026-09-30 and recovered via `iris session FHIR -B` →
+  `Do ^STURECOV` → option 8 (reset so journal is not restored at startup) →
+  `iris force FHIR` → `iris start FHIR`. `^SHUTDOWN`'s prompts read `/dev/tty`
+  and cannot be driven from a pipe; the `iris.stop` ExecStop inside the baked-in
+  `iris.service` handles that with a pty.
+- The image is only shippable after a **clean** `systemctl stop iris` (the unit
+  stop is validated: IRIS down, unit `inactive`) and a cold-boot re-verify:
+  TLS 200 on `https://10.0.3.108:52774/fhir/r4/metadata`, shim 200, pat013,
+  CRD `systemActions` non-empty, `grep -c "Startup aborted" messages.log` = 0.
+- `iris list` shows `state: warn` — expected (HealthShare failover context has
+  no mirror partner; benign). IRIS auto-starts at container boot via the unit.
 
 ## If something is genuinely wrong
 
