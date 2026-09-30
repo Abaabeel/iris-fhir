@@ -1,0 +1,347 @@
+{
+  "hookInstance": "warmup-001",
+  "fhirServer": "http://localhost:8080/fhir/r4",
+  "hook": "order-sign",
+  "fhirAuthorization": {
+    "access_token": "",
+    "token_type": "Bearer",
+    "expires_in": 300,
+    "scope": "patient/Patient.read patient/Observation.read",
+    "subject": "cds-service4"
+  },
+  "context": {
+    "userId": "Practitioner/example",
+    "patientId": "pat013",
+    "encounterId": "enc89284",
+    "draftOrders": {
+      "resourceType": "Bundle",
+      "entry": [
+        {
+          "resource": {
+            "resourceType": "DeviceRequest",
+            "id": "devreq037",
+            "meta": {
+              "profile": [
+                "http://hl7.org/fhir/us/davinci-crd/StructureDefinition/profile-devicerequest"
+              ],
+              "lastUpdated": "2026-09-29T22:33:31Z",
+              "versionId": "2"
+            },
+            "status": "draft",
+            "intent": "original-order",
+            "codeCodeableConcept": {
+              "coding": [
+                {
+                  "system": "https://www.cms.gov/Medicare/Coding/HCPCSReleaseCodeSets",
+                  "code": "E0607",
+                  "display": "Home blood glucose monitor"
+                }
+              ]
+            },
+            "subject": {
+              "reference": "Patient/pat013"
+            },
+            "authoredOn": "2023-01-01T00:00:00Z",
+            "requester": {
+              "reference": "Practitioner/pra-hfairchild"
+            },
+            "performer": {
+              "reference": "Practitioner/pra1234"
+            },
+            "insurance": [
+              {
+                "reference": "Coverage/cov013"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "extension": {
+    "davinci-crd.configuration": {
+      "alt-drug": true
+    }
+  },
+  "prefetch": {
+    "user": {
+      "resourceType": "Practitioner",
+      "id": "example"
+    },
+    "deviceRequestBundle": {
+      "resourceType": "Bundle",
+      "type": "collection",
+      "entry": [
+        {
+          "fullUrl": "https://10.0.3.108:52774/fhir/r4/DeviceRequest/devreq037",
+          "resource": {
+            "resourceType": "DeviceRequest",
+            "id": "devreq037",
+            "meta": {
+              "profile": [
+                "http://hl7.org/fhir/us/davinci-crd/StructureDefinition/profile-devicerequest"
+              ],
+              "lastUpdated": "2026-09-29T22:33:31Z",
+              "versionId": "2"
+            },
+            "status": "draft",
+            "intent": "original-order",
+            "codeCodeableConcept": {
+              "coding": [
+                {
+                  "system": "https://www.cms.gov/Medicare/Coding/HCPCSReleaseCodeSets",
+                  "code": "E0607",
+                  "display": "Home blood glucose monitor"
+                }
+              ]
+            },
+            "subject": {
+              "reference": "Patient/pat013"
+            },
+            "authoredOn": "2023-01-01T00:00:00Z",
+            "requester": {
+              "reference": "Practitioner/pra-hfairchild"
+            },
+            "performer": {
+              "reference": "Practitioner/pra1234"
+            },
+            "insurance": [
+              {
+                "reference": "Coverage/cov013"
+              }
+            ]
+          },
+          "search": {
+            "mode": "match"
+          }
+        },
+        {
+          "fullUrl": "https://10.0.3.108:52774/fhir/r4/Patient/pat013",
+          "resource": {
+            "resourceType": "Patient",
+            "id": "pat013",
+            "gender": "male",
+            "birthDate": "1956-12-01",
+            "address": [
+              {
+                "use": "home",
+                "type": "both",
+                "state": "VA",
+                "city": "Reston",
+                "postalCode": "20190",
+                "line": [
+                  "11951 Freedom Drive Suite 1322"
+                ]
+              }
+            ],
+            "name": [
+              {
+                "use": "official",
+                "family": "Quinton",
+                "given": [
+                  "Vlad",
+                  "Alan",
+                  "Nestor"
+                ]
+              }
+            ],
+            "identifier": [
+              {
+                "use": "usual",
+                "type": {
+                  "coding": [
+                    {
+                      "system": "http://terminology.hl7.org/CodeSystem/v2-0203",
+                      "code": "MR"
+                    }
+                  ],
+                  "text": "Medical Record Number"
+                },
+                "system": "http://hl7.org/fhir/sid/us-medicare",
+                "value": "0M987654001AZ"
+              }
+            ],
+            "meta": {
+              "lastUpdated": "2026-09-29T22:33:30Z",
+              "versionId": "2"
+            }
+          },
+          "search": {
+            "mode": "include"
+          }
+        },
+        {
+          "fullUrl": "https://10.0.3.108:52774/fhir/r4/Practitioner/pra1234",
+          "resource": {
+            "resourceType": "Practitioner",
+            "id": "pra1234",
+            "meta": {
+              "profile": [
+                "http://hl7.org/fhir/us/core/StructureDefinition/us-core-practitioner"
+              ],
+              "lastUpdated": "2026-09-29T22:33:32Z",
+              "versionId": "2"
+            },
+            "identifier": [
+              {
+                "system": "http://hl7.org/fhir/sid/us-npi",
+                "value": "1122334455"
+              }
+            ],
+            "address": [
+              {
+                "use": "home",
+                "type": "both",
+                "state": "NY",
+                "city": "Buffalo",
+                "postalCode": "14210",
+                "line": [
+                  "840 Seneca St"
+                ]
+              }
+            ],
+            "telecom": [
+              {
+                "system": "phone",
+                "value": "716-873-1557"
+              },
+              {
+                "system": "email",
+                "value": "jane.betty@myhospital.com"
+              }
+            ],
+            "name": [
+              {
+                "use": "official",
+                "family": "Doe",
+                "given": [
+                  "Jane",
+                  "Betty"
+                ],
+                "prefix": [
+                  "Dr."
+                ]
+              }
+            ],
+            "qualification": [
+              {
+                "identifier": [
+                  {
+                    "system": "http://example.org/UniversityIdentifier",
+                    "value": "12345"
+                  }
+                ],
+                "code": {
+                  "coding": [
+                    {
+                      "system": "http://terminology.hl7.org/CodeSystem/v2-0360/2.7",
+                      "code": "MD",
+                      "display": "Doctor of Medicine"
+                    }
+                  ],
+                  "text": "Doctor of Medicine"
+                },
+                "period": {
+                  "start": "1995"
+                },
+                "issuer": {
+                  "display": "Example University"
+                }
+              }
+            ]
+          },
+          "search": {
+            "mode": "include"
+          }
+        },
+        {
+          "fullUrl": "https://10.0.3.108:52774/fhir/r4/Practitioner/pra-hfairchild",
+          "resource": {
+            "resourceType": "Practitioner",
+            "id": "pra-hfairchild",
+            "identifier": [
+              {
+                "system": "http://hl7.org/fhir/sid/us-npi",
+                "value": "1122334467"
+              }
+            ],
+            "name": [
+              {
+                "use": "official",
+                "family": "Fairchild",
+                "given": [
+                  "Helen"
+                ],
+                "prefix": [
+                  "Ms."
+                ]
+              }
+            ],
+            "meta": {
+              "lastUpdated": "2026-09-29T22:33:32Z",
+              "versionId": "2"
+            }
+          },
+          "search": {
+            "mode": "include"
+          }
+        }
+      ]
+    },
+    "coverageBundle": {
+      "resourceType": "Bundle",
+      "type": "collection",
+      "entry": [
+        {
+          "fullUrl": "https://10.0.3.108:52774/fhir/r4/Coverage/cov013",
+          "resource": {
+            "resourceType": "Coverage",
+            "id": "cov013",
+            "meta": {
+              "profile": [
+                "http://hl7.org/fhir/us/davinci-crd/StructureDefinition/profile-coverage"
+              ],
+              "lastUpdated": "2026-09-29T22:33:31Z",
+              "versionId": "2"
+            },
+            "status": "active",
+            "subscriberId": "10A3D58WH22",
+            "beneficiary": {
+              "reference": "Patient/pat013"
+            },
+            "relationship": {
+              "coding": [
+                {
+                  "system": "http://terminology.hl7.org/CodeSystem/subscriber-relationship",
+                  "code": "self"
+                }
+              ]
+            },
+            "payor": [
+              {
+                "reference": "Organization/org1234"
+              }
+            ],
+            "class": [
+              {
+                "type": {
+                  "coding": [
+                    {
+                      "system": "http://terminology.hl7.org/CodeSystem/coverage-class",
+                      "code": "plan"
+                    }
+                  ]
+                },
+                "value": "Medicare Part A"
+              }
+            ]
+          },
+          "search": {
+            "mode": "match"
+          }
+        }
+      ]
+    }
+  },
+  "userId": "pra-hfairchild"
+}

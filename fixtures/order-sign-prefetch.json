@@ -1,6 +1,21 @@
-{ "hook": "order-sign", "hookInstance": "reprovision-001",
-  "fhirServer": "http://localhost:8080/fhir", "userId": "pra-hfairchild",
+{
+  "hook": "order-sign",
+  "hookInstance": "reprovision-001",
+  "fhirServer": "http://localhost:8080/fhir/r4",
+  "userId": "pra-hfairchild",
   "context": {
     "patientId": "pat013",
-    "draftOrders": { "resourceType": "Bundle", "type": "collection",
-      "entry": [ { "resource": { "resourceType": "DeviceRequest", "id": "devreq037" } } ] } } }
+    "draftOrders": {
+      "resourceType": "Bundle",
+      "type": "collection",
+      "entry": [
+        {
+          "resource": {
+            "resourceType": "DeviceRequest",
+            "id": "devreq037"
+          }
+        }
+      ]
+    }
+  }
+}

@@ -15,7 +15,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
 
 FIXTURES="$DAVINCI_ROOT/fixtures"
 WORK="$DAVINCI_ROOT/state/demo"
-EHR_FHIR="http://localhost:$TEST_EHR_PORT/test-ehr/r4"
+EHR_FHIR="http://localhost:$TEST_EHR_PORT/fhir/r4"
 PAS="$PAS_DIR/src/test/resources/bundle-items.json"
 
 # 15s DELAY + generous margin; we poll, so this is a ceiling not a sleep.
@@ -93,7 +93,7 @@ launch_id="$(curl -sL -m 20 -X POST -H 'Content-Type: application/json' \
   -d "{\"launchUrl\":\"http://localhost:$DTR_PORT/launch\",\"parameters\":{\"patient\":\"pat013\"}}" \
   "$EHR_FHIR/_services/smart/Launch" \
   | python3 -c "import json,sys;print(json.load(sys.stdin).get('launch_id',''))" 2>/dev/null)"
-[ -n "$launch_id" ] || die "test-ehr did not return a launch_id" "the card's SMART link would dead-end"
+[ -n "$launch_id" ] || die "EHR did not return a launch_id" "the card's SMART link would dead-end"
 ok "launch_id issued: $launch_id"
 ok "link crg would open: http://localhost:$DTR_PORT/launch?launch=$launch_id&iss=$EHR_FHIR"
 

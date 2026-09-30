@@ -45,7 +45,7 @@ stop_svc() {
 }
 
 # Reverse of the up.sh order.
-for svc in crd-request-generator dtr prior-auth crd test-ehr; do
+for svc in crd-request-generator dtr prior-auth crd ehr-shim test-ehr; do
   stop_svc "$svc"
 done
 

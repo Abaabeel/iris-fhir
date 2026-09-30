@@ -42,9 +42,13 @@ Everything the stack authenticates against, in full. There is nothing else.
 | PAS FHIR client | none | PAS runs `BYPASS_AUTH=true`, issues its own token from H2 | none |
 | GitHub | none | the repository is public; anonymous clone works | none |
 | `VSAC_API_KEY` | absent | optional; without it 67 value sets do not resolve | none — omit it |
+| IRIS FHIR OAuth confidential client | auto-generated id/secret in `bin/env.sh` (`IRIS_OAUTH_CLIENT_ID`/`_SECRET`) | created by `ConfigureInternalOAuthClients()` when the `iris-fhir` container was provisioned; local mock fixture, same standing as Keycloak's `admin/admin` — it only authorizes against the container's internal OAuth server | none — needed by `bin/ehr-shim` and `bin/seed-iris.sh` |
 
 The stack needs no secrets because the two services that could demand them are configured not
 to: PAS runs with `BYPASS_AUTH=true`, and CRD runs `use_oauth: false` with `checkJwt: false`.
+IRIS is reached only through `bin/ehr-shim`, which holds the confidential client and mints a
+`client_credentials` bearer token (`aud` = the FHIR base URL) for every upstream call, so the
+browser never needs an IRIS token.
 Keycloak exists solely so the DTR launch performs a real OIDC redirect through a real login
 page, which is what makes the browser path genuinely end to end.
 
@@ -120,7 +124,7 @@ while read -r name port route; do
   printf '  %-12s %s  %s  %s\n' "$name" "$port" "$code" "$route"
 done <<'EOF'
 keycloak     8180 /realms/BurdenReduction/.well-known/openid-configuration
-test-ehr     8080 /fhir/metadata
+ehr-shim     8080 /fhir/r4/metadata
 crd          8090 /r4/cds-services
 prior-auth   9015 /fhir/metadata
 dtr          3005 /
@@ -128,15 +132,20 @@ crg          3001 /
 EOF
 ```
 
-All six must be `200`. Note the paths: `/fhir/metadata` on 8080 and 9015, not `/metadata`, and
-`/r4/cds-services` on 8090. A `404` on those means you guessed the path, **not** that the
-service is down. `3001` is the one that matters most: crg serves its runtime URLs from
-`/env-config`, so if that is missing the browser will call the wrong hosts even though `/` works.
+All six must be `200`. Note the paths: `/fhir/r4/metadata` on 8080, `/fhir/metadata` on 9015
+(not `/metadata`), and `/r4/cds-services` on 8090. A `404` on those means you guessed the
+path, **not** that the service is down. `8080` is now `bin/ehr-shim` (Node) standing in for
+test-ehr in front of the IRIS FHIR server in the `iris-fhir` LXC container — a `200` there
+proves the shim can mint an IRIS token and proxy the CapabilityStatement. `3001` is the one
+that matters most: crg serves its runtime URLs from `/env-config`, so if that is missing the
+browser will call the wrong hosts even though `/` works.
 
 A `200` on all six is necessary and not sufficient. `up.sh` also runs post-flight checks —
 dtr's `/clients` being non-empty, CRD actually advertising the `order-sign-crd` hook, the
-value-set cache being reachable at CRD's concatenated path. Read its output; those are the
-failures a naive probe waves through.
+value-set cache being reachable at CRD's concatenated path, and CRD's write-once
+doc-needed flag being warmed (see "Known, accepted limitations"); the warmup is the
+check that would wave a poisoned CRD through. Read its output; those are the failures a
+naive probe waves through.
 
 A `000` on `8180` almost always means Keycloak never imported the realm. The usual cause is
 JDK 21 missing — `kc.sh` runs `$JAVA_HOME/bin/java`, and `env.sh` points `JAVA_HOME` at the
@@ -241,6 +250,17 @@ State these if asked; do not try to fix them.
 - CRD cannot resolve the CQL references `ALTERNATIVE_THERAPY`,
   `RESULT_QuestionnaireAdditionalUri` and `RESULT_QuestionnairePARequestUri` in
   `HomeBloodGlucoseMonitorRule`, so the dtr form arrives un-prefilled. Upstream defect.
+- **CRD's `hasDocNeededExtension` caches its result on the singleton, write-once, per boot.**
+  The first `order-sign-crd` POST after CRD starts decides whether responses ever carry
+  `systemActions` (the `"Complete … in DTR"` button source). A request that degrades to the
+  summary card — the prefetch-less `fixtures/order-sign-prefetch.json` (demo step 1) throws
+  `RequestIncompleteException` — caches `false`, and *every* later response silently drops
+  `systemActions`, so crg never renders the launch button and the browser E2E fails at the
+  SMART launch even though the API drivers pass. Upstream defect, unmasked by the IRIS swap.
+  `up.sh` post-flight now **warms the flag first** (POSTs `fixtures/order-sign-warmup.json`,
+  a real prefetch-carrying request) and fails loud if `systemActions` comes back empty —
+  the recovery is a CRD restart so the warmup is the first POST. Once warmed `true`, the
+  flag never changes, so demo.sh and the e2e are safe in any order.
 - Without a `VSAC_API_KEY`, 67 value sets do not resolve and value-set-gated CDS rules cannot
   fire.
 - The full prior-auth decision takes about 15 seconds (`DELAY=15000` in `env.sh`).

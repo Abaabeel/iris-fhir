@@ -1155,3 +1155,45 @@ element did the thing*. What works: tag the DOM in JS. Climb from the `pat013` t
   corrected, and `TEST-FLOW.md` §7's "NOT INSTALLED — deliberately" decision is marked as the
   mistake it was. The two remaining "5 services" mentions in `PLAN.md` (inside the Phase 2 code
   block and the §3 layout listing) are left as period-correct history.
+
+### 15. The e2e's missing leg was a poisoned flag inside CRD (closed, 2026-09-30)
+
+Section 3 has failed every run since the IRIS swap in the same way: the "Complete …
+in DTR" button never appears, the click times out, and the run dies before any popup
+exists. `demo.sh` stayed 12/12 the whole time. Three symptoms that only made sense
+together once the mechanism was found:
+
+- **Every card flow minted exactly six `POST /fhir/r4/_services/smart/Launch`** with
+  `appContext` carrying the three questionnaires (`Order`/`FaceToFace`/`Lab` × 2 cards),
+  followed by zero SMART traffic. Red herring: crg's `DisplayBox.modifySmartLaunchUrls`
+  fires one launch-context POST per `type=smart` card link **at render time** and
+  discards the result (`linkCopy` is reassigned after the promise resolves). 2 cards ×
+  3 links = 6; nothing is ever opened.
+- **The live CRD responses had `systemActions: 0`** even though every card's
+  `Save Update To EHR` suggestion action carried `ext-coverage-information` with
+  `doc-needed=admin` and `questionnaire=…/HomeBloodGlucoseMonitorOrder`.
+- **Zero `Extension object class` log lines in the entire boot** — the scan in
+  `hasDocNeededExtension` never ran.
+
+Mechanism: CRD's `hasDocNeededExtension(List<Card>)` (CdsService.java:343) caches its
+result **write-once on the singleton** via `docNeededChecked`/`docNeededPresent`. The
+first cds-services POST after boot that reaches the scan decides the value **for the
+whole boot**. The poison was the prefetch-less reprovision request
+(`fixtures/order-sign-prefetch.json`, no `prefetch` and no `fhirAuthorization`) — on a
+cold boot it throws `RequestIncompleteException` ("Unable to (pre)fetch any supported
+bundles"), degrades to the summary card, the scan sees a card with no suggestions,
+caches `false`, and every later response silently drops `systemActions`. With
+`systemActions` empty, `extractQuestionnairesFromCoverageInfo` returns `[]` and crg
+never renders the launch section. The certified runs passed because the accident of
+ordering warmed the flag `true` first; `up.sh --reset` + demo-before-e2e flipped it.
+
+Fix (no upstream patch, no build): warm the flag with a real prefetch-carrying request
+first. `fixtures/order-sign-warmup.json` is the crg-shaped request (prefetch keys
+`user`/`deviceRequestBundle`/`coverageBundle`); `up.sh` post-flight POSTs it right
+after CRD is up and fails loud if `systemActions` comes back empty (the recovery is a
+CRD restart so the warmup runs first). The flag is write-once, so afterwards demo.sh
+and the e2e are safe in any order.
+
+Verified: cold CRD → warmup first → `systemActions: 1` (questionnaire
+`…/HomeBloodGlucoseMonitorOrder`) → `e2e-browser.py` **14/14** twice consecutively
+(2026-09-30); `demo.sh` 12/12 unchanged.

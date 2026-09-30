@@ -170,24 +170,23 @@ launch keycloak "$KEYCLOAK_HOME" \
   KC_HOSTNAME_STRICT_HTTPS=false \
   -- ./bin/kc.sh start-dev --import-realm
 
-# --- 1. test-ehr : the FHIR server everything else reads from --------------
-# SPRING_APPLICATION_JSON rather than an edit to application.yaml: the OAuth
-# endpoints in there are hardcoded to localhost, which is correct for a browser
-# on this host and wrong for one on the LAN, and a repo edit would be silently
-# lost on the next bin/clone.sh. Spring honours this over the packaged yaml and
-# the JSON keys are bound verbatim, so the underscores in oauth_authorize
-# survive (a plain SECURITY_OAUTH_AUTHORIZE env var would not bind reliably).
-#
-# security.auth_redirect_host is deliberately NOT overridden. AuthProxy.java:170
-# uses it as the FULL scheme://host:port prefix and falls back to the incoming
-# request's own scheme/host/port when it is empty. Setting it to a bare hostname
-# produced redirect_uri=192.0.2.10/test-ehr/_auth/... (no scheme, no port),
-# which Keycloak rejected as an invalid redirect_uri. Empty is both correct and
-# DHCP-proof.
-launch test-ehr "$EHR_DIR" "http://localhost:$TEST_EHR_PORT/fhir/metadata" \
-  MAVEN_OPTS="-Xmx$EHR_XMX" \
-  SPRING_APPLICATION_JSON="{\"security\":{\"oauth_token\":\"http://$ADVERTISE_HOST:$KEYCLOAK_PORT/realms/BurdenReduction/protocol/openid-connect/token\",\"oauth_authorize\":\"http://$ADVERTISE_HOST:$KEYCLOAK_PORT/realms/BurdenReduction/protocol/openid-connect/auth\",\"proxy_authorize\":\"http://$ADVERTISE_HOST:$TEST_EHR_PORT/test-ehr/auth\",\"proxy_token\":\"http://$ADVERTISE_HOST:$TEST_EHR_PORT/test-ehr/token\",\"redirect_post_launch\":\"http://$ADVERTISE_HOST:$TEST_EHR_PORT/test-ehr/_services/smart/Launch\",\"redirect_post_token\":\"http://$ADVERTISE_HOST:$TEST_EHR_PORT/test-ehr/token\"}}" \
-  -- mvn -B spring-boot:run
+# --- 1. ehr-shim : IRIS for Health FHIR, fronted on 8080 -------------------
+# Replaces test-ehr. The real FHIR server is IRIS in the iris-fhir LXC
+# container (10.0.3.108:52774/fhir/r4); this Node shim replicates test-ehr's
+# SMART launch + OAuth bridge on the same port, so nothing else in the stack
+# changes — crg/dtr still see http://localhost:8080/fhir/r4. The container is
+# provisioned and seeded out of band (bin/seed-iris.sh); this step only needs
+# it to be reachable at $IRIS_FHIR_BASE.
+launch ehr-shim "$DAVINCI_ROOT/bin/ehr-shim" "http://localhost:$TEST_EHR_PORT/fhir/r4/metadata" \
+  SHIM_PORT="$TEST_EHR_PORT" \
+  IRIS_FHIR_BASE="$IRIS_FHIR_BASE" \
+  IRIS_OAUTH_TOKEN="$IRIS_TOKEN_URL" \
+  IRIS_OAUTH_CLIENT_ID="$IRIS_OAUTH_CLIENT_ID" \
+  IRIS_OAUTH_CLIENT_SECRET="$IRIS_OAUTH_CLIENT_SECRET" \
+  IRIS_OAUTH_SCOPES="$IRIS_OAUTH_SCOPES" \
+  KC_AUTHORIZE="http://$ADVERTISE_HOST:$KEYCLOAK_PORT/realms/BurdenReduction/protocol/openid-connect/auth" \
+  KC_TOKEN="http://$ADVERTISE_HOST:$KEYCLOAK_PORT/realms/BurdenReduction/protocol/openid-connect/token" \
+  -- node server.js
 
 # --- 2. crd : CDS Hooks, turns orders into coverage-requirements cards ------
 # Seeded before crd boots, because crd reads the cache at startup and an empty
@@ -243,7 +242,7 @@ while read -r name port probe; do
   printf '%-24s %-6s %-34s %b\n' "$name" "$port" "$probe" "$state"
 done <<EOF
 keycloak            $KEYCLOAK_PORT  http://localhost:$KEYCLOAK_PORT/realms/BurdenReduction/.well-known/openid-configuration
-test-ehr            $TEST_EHR_PORT  http://localhost:$TEST_EHR_PORT/fhir/metadata
+ehr-shim            $TEST_EHR_PORT  http://localhost:$TEST_EHR_PORT/fhir/r4/metadata
 crd                 $CRD_PORT       http://localhost:$CRD_PORT/r4/cds-services
 prior-auth          $PAS_PORT       http://localhost:$PAS_PORT/fhir/metadata
 dtr                 $DTR_PORT       http://localhost:$DTR_PORT/
@@ -279,6 +278,40 @@ if curl -fsS -m 5 "http://localhost:$CRD_PORT/r4/cds-services" 2>/dev/null | gre
   ok "crd advertises order-sign-crd"
 else
   warn "crd is up but not advertising order-sign-crd — the card will never appear"
+fi
+
+# 2b. Warm CRD's write-once "doc-needed" flag. CRD's hasDocNeededExtension()
+#     caches its result on the CdsService singleton: the FIRST cds-services POST
+#     after boot decides whether responses ever carry systemActions. A request
+#     that yields the summary card -- e.g. the prefetch-less reprovision fixture,
+#     which throws RequestIncompleteException -- caches "false", and every later
+#     request silently drops systemActions: crg never renders the
+#     "Complete ... in DTR" button and the browser E2E fails at the SMART launch.
+#     Warming with a real prefetch-carrying request FIRST makes it cache "true".
+#     The flag is write-once, so after this points everything downstream is safe
+#     in any order.
+crd_warm_code="$(curl -s -m 30 -o "$LOGDIR/crd-warmup.json" -w '%{http_code}' \
+  -H 'Content-Type: application/json' \
+  --data-binary @"$DAVINCI_ROOT/fixtures/order-sign-warmup.json" \
+  "http://localhost:$CRD_PORT/r4/cds-services/order-sign-crd")"
+if [ "$crd_warm_code" = 200 ]; then
+  crd_warm_actions="$(python3 -c "
+import json
+d = json.load(open('$LOGDIR/crd-warmup.json'))
+print(len(d.get('systemActions') or []))
+" 2>/dev/null || echo -1)"
+  if [ "${crd_warm_actions:-0}" -gt 0 ]; then
+    ok "crd doc-needed flag warmed (systemActions=$crd_warm_actions)"
+  else
+    bad "crd systemActions is EMPTY after the warmup -- doc-needed flag poisoned"
+    warn "    An earlier request (e.g. the prefetch-less reprovision fixture) made"
+    warn "    CRD's first cds-services scan cache 'false' for this boot, so no card"
+    warn "    will ever carry questionnaires and the browser E2E cannot launch DTR."
+    warn "    Restart CRD (kill its port-8090 process group) and re-run bin/up.sh"
+    warn "    so this warmup is the first cds-services POST."
+  fi
+else
+  warn "crd warmup returned $crd_warm_code (see $LOGDIR/crd.log)"
 fi
 
 # 3. PAS seeded itself. debug=true makes this automatic (fix #7/#8), so an

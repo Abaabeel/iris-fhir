@@ -33,12 +33,23 @@ export MAVEN_OPTS="${MAVEN_OPTS:--Xmx512m}"
 mkdir -p "$GRADLE_USER_HOME"
 
 # --- authoritative ports (from prior-auth/docker-compose.yml, see PLAN.md §2) ---
-export TEST_EHR_PORT=8080     # test-ehr
+export TEST_EHR_PORT=8080     # ehr-shim -> IRIS (replaces test-ehr on this port)
 export CRD_PORT=8090          # crd
 export DTR_PORT=3005          # dtr
 export CRG_PORT=3001          # crd-request-generator — NOT 3000, taken on this host (item 18)
 export PAS_PORT=9015          # prior-auth
 export KEYCLOAK_PORT=8180     # keycloak — realm BurdenReduction, required by the DTR hop
+
+# --- IRIS for Health FHIR: the real EHR behind ehr-shim ----------------------
+# The FHIR server runs in LXC container `iris-fhir` (10.0.3.108); bin/ehr-shim
+# fronts it on $TEST_EHR_PORT and replicates test-ehr's SMART/OAuth surface.
+# These are the local mock fixtures created when the container was provisioned
+# (ConfigureInternalOAuthClients) — the same standing as Keycloak's admin/admin.
+export IRIS_FHIR_BASE="${IRIS_FHIR_BASE:-https://10.0.3.108:52774/fhir/r4}"
+export IRIS_TOKEN_URL="${IRIS_TOKEN_URL:-${IRIS_FHIR_BASE%/fhir/r4}/oauth2/token}"
+export IRIS_OAUTH_CLIENT_ID="${IRIS_OAUTH_CLIENT_ID:-MvrcDCC1LRt-UIEE-cXVpxyHnKhLDGuyBfpHZMNtWrA}"
+export IRIS_OAUTH_CLIENT_SECRET="${IRIS_OAUTH_CLIENT_SECRET:-I4CuQe1QbItnvt7FmpqyM6qN1d3IKwgsI37n7LmdU6eaLKb2rlJ9f_XA6yEXOMsutDyU_FvDSnsU6hdSg9HLhw}"
+export IRIS_OAUTH_SCOPES="${IRIS_OAUTH_SCOPES:-user/*.write user/*.rs}"
 
 # Keycloak lives OUTSIDE this folder, on local disk. The H2 data dir plus a
 # ~190 MB unpacked distribution have no business landing on a slow or small
@@ -137,10 +148,11 @@ export CORS_ORIGINS
 # PENDING -> GRANTED transition to show rather than a fake one.
 export DELAY=15000
 
-# DTR. Both defaults upstream already point at our test-ehr, stated here so the
-# swap point is visible in one place (PLAN.md §7).
+# DTR. Both defaults upstream already point at our EHR, stated here so the
+# swap point is visible in one place (PLAN.md §7). The EHR base is /fhir/r4 —
+# the IRIS instance fronted by bin/ehr-shim on $TEST_EHR_PORT.
 export REACT_APP_SERVER_PORT="$DTR_PORT"
-export REACT_APP_INITIAL_CLIENT="http://$ADVERTISE_HOST:$TEST_EHR_PORT/test-ehr/r4::app-login"
+export REACT_APP_INITIAL_CLIENT="http://$ADVERTISE_HOST:$TEST_EHR_PORT/fhir/r4::app-login"
 
 # crd-request-generator. PORT is the backend; the nine REACT_APP_* values are
 # resolved in the BROWSER, and src/properties.json already ships our topology.
@@ -150,7 +162,7 @@ export REACT_APP_INITIAL_CLIENT="http://$ADVERTISE_HOST:$TEST_EHR_PORT/test-ehr/
 # REACT_APP_SERVER_PORT — so a global PORT=3001 intended for crg silently
 # drags dtr onto 3001, where it then collides with crg's own EADDRINUSE.
 # up.sh passes PORT per service instead.
-export REACT_APP_EHR_SERVER="http://$ADVERTISE_HOST:$TEST_EHR_PORT/test-ehr/r4"
+export REACT_APP_EHR_SERVER="http://$ADVERTISE_HOST:$TEST_EHR_PORT/fhir/r4"
 export REACT_APP_CDS_SERVICE="http://$ADVERTISE_HOST:$CRD_PORT/r4/cds-services"
 export REACT_APP_ORDER_SELECT="order-select-crd"
 export REACT_APP_ORDER_SIGN="order-sign-crd"
